@@ -1,3 +1,4 @@
+{-# LANGUAGE MagicHash #-}
 module Focus.Prelude
   ( module Exports,
   )
@@ -56,7 +57,7 @@ import Foreign.Ptr as Exports
 import Foreign.StablePtr as Exports
 import Foreign.Storable as Exports hiding (alignment, sizeOf)
 import GHC.Conc as Exports hiding (threadWaitRead, threadWaitReadSTM, threadWaitWrite, threadWaitWriteSTM, withMVar)
-import GHC.Exts as Exports (groupWith, inline, lazy, sortWith)
+import GHC.Exts as Exports (groupWith, inline, lazy, sortWith, isTrue#, dataToTag#)
 import GHC.Generics as Exports (Generic)
 import GHC.IO.Exception as Exports
 import Numeric as Exports

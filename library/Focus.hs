@@ -1,3 +1,5 @@
+{-# LANGUAGE MagicHash #-}
+{-# LANGUAGE LambdaCase #-}
 module Focus where
 
 import Focus.Prelude hiding (delete, insert, lookup)
@@ -49,20 +51,47 @@ instance MonadTrans (Focus element) where
 data Change a
   = -- | Produce no changes
     Leave
-  | -- | Delete it
-    Remove
   | -- | Set its value to the provided one
     Set a
-  deriving (Functor, Eq, Ord, Show)
+  | -- | Delete it
+    Remove
+  deriving (Functor, Foldable, Eq, Ord, Show)
 
 instance Semigroup (Change a) where
   (<>) l r =
     case r of
       Leave -> l
       _ -> r
+  stimes = stimesIdempotentMonoid
 
 instance Monoid (Change a) where
   mempty = Leave
+
+
+-- | Determine if the @Change@ is a @Set@
+{-# INLINE isSet #-}
+isSet :: Change a -> Bool
+isSet c = isTrue# (dataToTag# c)
+
+{-# INLINE maybeToChange #-}
+maybeToChange :: Maybe a -> Change a
+maybeToChange = unsafeCoerce
+
+{-# INLINE changeToMaybe #-}
+changeToMaybe :: Change a -> Maybe a
+changeToMaybe = \case
+  Set a -> Just a
+  _     -> Nothing
+
+-- | Apply a change to a Maybe value. Returns a tuple where 
+-- `fst` is the updated Maybe value, and `snd` is either `Leave`
+-- if the value did not change, or the original change otherwise.
+changeMaybe :: Eq a => Maybe a -> Change a -> (Maybe a, Change a)
+changeMaybe l = \case
+  Leave  -> (l, Leave)
+  Remove -> (Nothing, if isJust l then Remove else Leave)
+  Set b  -> (Just b, if l /= Just b then Set b else Leave)
+
 
 -- * Pure functions
 

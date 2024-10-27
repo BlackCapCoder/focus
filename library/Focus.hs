@@ -49,12 +49,12 @@ instance MonadTrans (Focus element) where
 --
 -- The interpretation of the commands is up to the context APIs.
 data Change a
-  = -- | Produce no changes
-    Leave
+  = -- | Delete it
+    Remove
   | -- | Set its value to the provided one
     Set a
-  | -- | Delete it
-    Remove
+  | -- | Produce no changes
+    Leave
   deriving (Functor, Foldable, Eq, Ord, Show)
 
 instance Semigroup (Change a) where
@@ -67,30 +67,61 @@ instance Semigroup (Change a) where
 instance Monoid (Change a) where
   mempty = Leave
 
-
--- | Determine if the @Change@ is a @Set@
+-- | Determine if the @Change@ is @Set@
 {-# INLINE isSet #-}
 isSet :: Change a -> Bool
 isSet c = isTrue# (dataToTag# c)
 
-{-# INLINE maybeToChange #-}
-maybeToChange :: Maybe a -> Change a
-maybeToChange = unsafeCoerce
 
-{-# INLINE changeToMaybe #-}
-changeToMaybe :: Change a -> Maybe a
-changeToMaybe = \case
-  Set a -> Just a
-  _     -> Nothing
+-- | A strict version of $Maybe$.
+-- `Perhaps a` is the state of some value `a` that has had a `Change` applied to it
+data Perhaps a
+   = Absent
+   | Present a
+   deriving (Functor, Foldable, Eq, Ord, Show)
 
--- | Apply a change to a Maybe value. Returns a tuple where 
--- `fst` is the updated Maybe value, and `snd` is either `Leave`
--- if the value did not change, or the original change otherwise.
-changeMaybe :: Eq a => Maybe a -> Change a -> (Maybe a, Change a)
-changeMaybe l = \case
+
+-- | Determine if the value is $Present$
+{-# INLINE isPresent #-}
+isPresent :: Perhaps a -> Bool
+isPresent p = isTrue# (dataToTag# p)
+
+-- | Apply a $Change$ to a $Perhaps$ value
+{-# INLINE applyChange #-}
+applyChange :: Perhaps a -> Change a -> Perhaps a
+applyChange old = \case
+  Leave -> old
+  new   -> unsafeCoerce new
+
+-- | Like $applyChange$, but also produces the "effective" change.
+-- IE: `Leave` if nothing was changed or the original change otherwise.
+applyChange' :: Eq a => Perhaps a -> Change a -> (Perhaps a, Change a)
+applyChange' l = \case
   Leave  -> (l, Leave)
-  Remove -> (Nothing, if isJust l then Remove else Leave)
-  Set b  -> (Just b, if l /= Just b then Set b else Leave)
+  Remove -> (Absent, if isPresent l then Remove else Leave)
+  Set b  -> (Present b, if l /= Present b then Set b else Leave)
+
+
+-- | $Absent$ maps to $Remove$
+{-# INLINE perhapsToChange #-}
+perhapsToChange :: Perhaps a -> Change a
+perhapsToChange = unsafeCoerce
+
+{-# INLINE perhapsToMaybe #-}
+perhapsToMaybe :: Perhaps a -> Maybe a
+perhapsToMaybe = unsafeCoerce
+
+{-# INLINE changeToPerhaps #-}
+changeToPerhaps :: Change a -> Perhaps a
+changeToPerhaps = \case -- applyChange Absent
+  Set a -> Present a
+  _     -> Absent
+
+{-# INLINE maybeToPerhaps #-}
+maybeToPerhaps :: Maybe a -> Perhaps a
+maybeToPerhaps = \case
+  Just !a -> Present a
+  _       -> Absent
 
 
 -- * Pure functions
